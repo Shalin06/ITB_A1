@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include "message_m.h"
+#include "config.h"
 using namespace omnetpp;
 
 std::vector<int> generateRandomArray(int n, int x) {
@@ -45,12 +46,16 @@ int generate_random_number(int n){
     return rand()%n;
 }
 
+double randExp(double lambda) {
+    double u = (double) rand() / RAND_MAX;
+    return -log(1 - u) / lambda;
+}
+
 class Peer : public cSimpleModule {
 protected:
 
     int tau;
-    int hashing_power;
-    int inter_arrival_time;
+    double hashing_power;
     int number_of_block_generated = 0;
 
     std::ofstream csvFile;
@@ -89,7 +94,7 @@ protected:
     virtual void handleTimer(cMessage * msg);
     virtual void handleBlockMessage(cMessage* msg);
     virtual void writeBlockToCSV(Block* block);
-//    virtual void tauGenerator();
+    virtual void tauGenerator();
     virtual void finish() override;
 
 
@@ -99,9 +104,15 @@ public:
 
 Define_Module(Peer);
 
+void Peer::tauGenerator(){
+    double lambda = hashing_power/INTER_ARRIVAL_TIME;
+    tau = randExp(lambda);
+}
+
 void Peer::initialize(int stage) {
     if(stage == 0){
         int ind = getIndex();
+        hashing_power = hashPower[ind];
         simtime_t delay = uniform(ind, ind+5);
         scheduleAt(simTime() + delay, new cMessage("delayedInit"));
     }
@@ -171,7 +182,7 @@ void Peer::handleInitialization(cMessage* msg){
     LivelinessEvent = new cMessage("Liveliness");
     GossipEvent = new cMessage("Gossip");
     Timer = new cMessage("Timer");
-    tau = generate_random_number(100);
+    tauGenerator();
 
     char fileName[30];
     std::sprintf(fileName, "block_data%d.csv", self_ind);
@@ -334,7 +345,7 @@ void Peer::handleTimer(cMessage* msg){
     for(auto peer: peer_list){
         send(block->dup(),gate("g$o",number_of_seeds + peer.first + 1));
     }
-    tau = generate_random_number(100);
+    tauGenerator();
     scheduleAt(simTime()+tau, Timer);
 }
 
@@ -344,7 +355,7 @@ void Peer::handleBlockMessage(cMessage* msg){
     if(block_list.find(block) != block_list.end()){
 
     }
-    tau = generate_random_number(100);
+    tauGenerator();
     scheduleAt(simTime() + tau, Timer);
 }
 
