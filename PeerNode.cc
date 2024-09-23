@@ -57,15 +57,16 @@ protected:
 
     int number_of_seeds;
     int number_of_peers;
-
+    int message_count = 0;
 
 
     std::unordered_map<std::string, int> seed_list;
     std::unordered_map<std::string, AddPeerToSeedRequest*> peerRequestMap;
     std::unordered_map<int,bool> peer_list;
     std::unordered_map<int,int> liveliness_cnt;
-    std::set<Block> block_list;
+    std::set<Block*> block_list;
     std::queue<Block> pendingQueue;
+    std::set<Gossip*> message_list;
 
 
     cMessage* LivelinessEvent;
@@ -88,7 +89,7 @@ protected:
     virtual void handleTimer(cMessage * msg);
     virtual void handleBlockMessage(cMessage* msg);
     virtual void writeBlockToCSV(Block* block);
-    virtual void tauGenerator();
+//    virtual void tauGenerator();
     virtual void finish() override;
 
 
@@ -286,10 +287,15 @@ void Peer::handleLivelinessReply(cMessage* msg){
 }
 
 void Peer::sendGossip(cMessage* msg){
+    if(message_count > 10){
+        cancelEvent(GossipEvent);
+        return;
+    }
     auto gossip = new Gossip();
     gossip->setTimestamp(simTime().inUnit(SimTimeUnit::SIMTIME_S));
     gossip->setSender_peer_ind(getIndex());
     gossip->setMsg("Gossip");
+    message_count++;
     for(auto peer: peer_list){
         send(gossip->dup(),gate("g$o",number_of_seeds + peer.first + 1));
     }
@@ -297,6 +303,16 @@ void Peer::sendGossip(cMessage* msg){
 
 void Peer::handleGossip(cMessage* msg){
     EV<<getFullName()<< "<---Gossip--->" << msg->getSenderModule()->getFullName() <<endl;
+    auto gossip = dynamic_cast<Gossip*>(msg);
+    if(message_list.find(gossip) == message_list.end()){
+        message_list.insert(gossip);
+        for(auto peer: peer_list){
+            send(gossip->dup(),gate("g$o",number_of_seeds + peer.first + 1));
+        }
+    }
+    else{
+        return;
+    }
 }
 
 void Peer::sendDeadMessageToSeed(int peer_ind){
@@ -324,6 +340,7 @@ void Peer::handleTimer(cMessage* msg){
 
 void Peer::handleBlockMessage(cMessage* msg){
     cancelEvent(Timer);
+    auto block = dynamic_cast<Block*>(msg);
     if(block_list.find(block) != block_list.end()){
 
     }
