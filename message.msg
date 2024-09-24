@@ -72,7 +72,7 @@ message Gossip{
 }
 
 message Block{
-	int previous_hash;
-	int merkel_root;
-	int timestamp;
+	string previous_hash;
+	string merkel_root;
+	string timestamp;
 }

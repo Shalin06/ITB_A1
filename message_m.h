@@ -396,18 +396,18 @@ inline void doParsimUnpacking(omnetpp::cCommBuffer *b, Gossip& obj) {obj.parsimU
  * <pre>
  * message Block
  * {
- *     int previous_hash;
- *     int merkel_root;
- *     int timestamp;
+ *     string previous_hash;
+ *     string merkel_root;
+ *     string timestamp;
  * }
  * </pre>
  */
 class Block : public ::omnetpp::cMessage
 {
   protected:
-    int previous_hash = 0;
-    int merkel_root = 0;
-    int timestamp = 0;
+    omnetpp::opp_string previous_hash;
+    omnetpp::opp_string merkel_root;
+    omnetpp::opp_string timestamp;
 
   private:
     void copy(const Block& other);
@@ -424,14 +424,14 @@ class Block : public ::omnetpp::cMessage
     virtual void parsimPack(omnetpp::cCommBuffer *b) const override;
     virtual void parsimUnpack(omnetpp::cCommBuffer *b) override;
 
-    virtual int getPrevious_hash() const;
-    virtual void setPrevious_hash(int previous_hash);
+    virtual const char * getPrevious_hash() const;
+    virtual void setPrevious_hash(const char * previous_hash);
 
-    virtual int getMerkel_root() const;
-    virtual void setMerkel_root(int merkel_root);
+    virtual const char * getMerkel_root() const;
+    virtual void setMerkel_root(const char * merkel_root);
 
-    virtual int getTimestamp() const;
-    virtual void setTimestamp(int timestamp);
+    virtual const char * getTimestamp() const;
+    virtual void setTimestamp(const char * timestamp);
 };
 
 inline void doParsimPacking(omnetpp::cCommBuffer *b, const Block& obj) {obj.parsimPack(b);}
