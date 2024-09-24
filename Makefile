@@ -33,7 +33,7 @@ PROJECTRELATIVE_PATH =
 O = $(PROJECT_OUTPUT_DIR)/$(CONFIGNAME)/$(PROJECTRELATIVE_PATH)
 
 # Object files for local .cc, .msg and .sm files
-OBJS = $O/PeerNode.o $O/SeedNode.o $O/message_m.o
+OBJS = $O/PeerNode.o $O/SeedNode.o $O/SHA256.o $O/message_m.o
 
 # Message files
 MSGFILES = \

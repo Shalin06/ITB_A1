@@ -3274,32 +3274,32 @@ void Block::parsimUnpack(omnetpp::cCommBuffer *b)
     doParsimUnpacking(b,this->timestamp);
 }
 
-int Block::getPrevious_hash() const
+const char * Block::getPrevious_hash() const
 {
-    return this->previous_hash;
+    return this->previous_hash.c_str();
 }
 
-void Block::setPrevious_hash(int previous_hash)
+void Block::setPrevious_hash(const char * previous_hash)
 {
     this->previous_hash = previous_hash;
 }
 
-int Block::getMerkel_root() const
+const char * Block::getMerkel_root() const
 {
-    return this->merkel_root;
+    return this->merkel_root.c_str();
 }
 
-void Block::setMerkel_root(int merkel_root)
+void Block::setMerkel_root(const char * merkel_root)
 {
     this->merkel_root = merkel_root;
 }
 
-int Block::getTimestamp() const
+const char * Block::getTimestamp() const
 {
-    return this->timestamp;
+    return this->timestamp.c_str();
 }
 
-void Block::setTimestamp(int timestamp)
+void Block::setTimestamp(const char * timestamp)
 {
     this->timestamp = timestamp;
 }
@@ -3432,9 +3432,9 @@ const char *BlockDescriptor::getFieldTypeString(int field) const
         field -= base->getFieldCount();
     }
     static const char *fieldTypeStrings[] = {
-        "int",    // FIELD_previous_hash
-        "int",    // FIELD_merkel_root
-        "int",    // FIELD_timestamp
+        "string",    // FIELD_previous_hash
+        "string",    // FIELD_merkel_root
+        "string",    // FIELD_timestamp
     };
     return (field >= 0 && field < 3) ? fieldTypeStrings[field] : nullptr;
 }
@@ -3519,9 +3519,9 @@ std::string BlockDescriptor::getFieldValueAsString(omnetpp::any_ptr object, int 
     }
     Block *pp = omnetpp::fromAnyPtr<Block>(object); (void)pp;
     switch (field) {
-        case FIELD_previous_hash: return long2string(pp->getPrevious_hash());
-        case FIELD_merkel_root: return long2string(pp->getMerkel_root());
-        case FIELD_timestamp: return long2string(pp->getTimestamp());
+        case FIELD_previous_hash: return oppstring2string(pp->getPrevious_hash());
+        case FIELD_merkel_root: return oppstring2string(pp->getMerkel_root());
+        case FIELD_timestamp: return oppstring2string(pp->getTimestamp());
         default: return "";
     }
 }
@@ -3538,9 +3538,9 @@ void BlockDescriptor::setFieldValueAsString(omnetpp::any_ptr object, int field, 
     }
     Block *pp = omnetpp::fromAnyPtr<Block>(object); (void)pp;
     switch (field) {
-        case FIELD_previous_hash: pp->setPrevious_hash(string2long(value)); break;
-        case FIELD_merkel_root: pp->setMerkel_root(string2long(value)); break;
-        case FIELD_timestamp: pp->setTimestamp(string2long(value)); break;
+        case FIELD_previous_hash: pp->setPrevious_hash((value)); break;
+        case FIELD_merkel_root: pp->setMerkel_root((value)); break;
+        case FIELD_timestamp: pp->setTimestamp((value)); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'Block'", field);
     }
 }
@@ -3574,9 +3574,9 @@ void BlockDescriptor::setFieldValue(omnetpp::any_ptr object, int field, int i, c
     }
     Block *pp = omnetpp::fromAnyPtr<Block>(object); (void)pp;
     switch (field) {
-        case FIELD_previous_hash: pp->setPrevious_hash(omnetpp::checked_int_cast<int>(value.intValue())); break;
-        case FIELD_merkel_root: pp->setMerkel_root(omnetpp::checked_int_cast<int>(value.intValue())); break;
-        case FIELD_timestamp: pp->setTimestamp(omnetpp::checked_int_cast<int>(value.intValue())); break;
+        case FIELD_previous_hash: pp->setPrevious_hash(value.stringValue()); break;
+        case FIELD_merkel_root: pp->setMerkel_root(value.stringValue()); break;
+        case FIELD_timestamp: pp->setTimestamp(value.stringValue()); break;
         default: throw omnetpp::cRuntimeError("Cannot set field %d of class 'Block'", field);
     }
 }
