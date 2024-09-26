@@ -12,8 +12,8 @@ simple Peer
 
 network Network {
  	parameters:
- 	    int number_of_seeds = default(10);
- 		int number_of_peers = default(10);
+ 	    int number_of_seeds = default(3);
+ 		int number_of_peers = default(3);
  	submodules:
  	    seeds[number_of_seeds]: Seed {
  	    	parameters: 
