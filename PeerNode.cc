@@ -6,6 +6,7 @@
 #include "message_m.h"
 #include "config.h"
 #include "SHA256.h"
+#include "functional"
 using namespace omnetpp;
 
 std::vector<int> generateRandomArray(int n, int x) {
@@ -76,11 +77,13 @@ protected:
     std::queue<Block*> pendingQueue;
     std::set<Gossip*> message_list;
     std::set<std::string> block_hashes;
+    std::hash<std::string> hash_fn;
+    std::string prev_block_hash;
 
 
     cMessage* LivelinessEvent;
     cMessage* GossipEvent;
-    cMessage* Timer;
+    cMessage* BlockGeneration;
     cMessage* BlockEvent;
 
 
@@ -96,7 +99,7 @@ protected:
     virtual void sendGossip(cMessage* msg);
     virtual void handleGossip(cMessage* msg);
     virtual void sendDeadMessageToSeed(int peer_ind);
-    virtual void handleTimer(cMessage * msg);
+    virtual void handleBlockGeneration(cMessage * msg);
     virtual void handleBlockMessage(cMessage* msg);
     virtual void writeBlockToCSV(Block* block);
     virtual void tauGenerator();
@@ -156,14 +159,18 @@ void Peer::handleMessage(cMessage *msg){
         else if(auto gossip = dynamic_cast<Gossip*>(msg)){
             handleGossip(gossip);
         }
-        else if(msg == Timer && simTime().inUnit(SimTimeUnit::SIMTIME_S) <=  1000){
-            handleTimer(msg);
+        else if(msg == BlockGeneration && simTime().inUnit(SimTimeUnit::SIMTIME_S) <=  1000){
+            handleBlockGeneration(msg);
         }
         else if(auto block = dynamic_cast<Block*>(msg)){
             handleBlockMessage(msg);
         }
         else if(msg == BlockEvent && simTime().inUnit(SimTimeUnit::SIMTIME_S) <=  1000){
             askForBlockList(msg);
+        }
+        else{
+            std::cout<<msg->getName()<<std::endl;
+            std::cout.flush();
         }
     }
 }
@@ -191,7 +198,7 @@ void Peer::handleInitialization(cMessage* msg){
     }
     LivelinessEvent = new cMessage("Liveliness");
     GossipEvent = new cMessage("Gossip");
-    Timer = new cMessage("Timer");
+    BlockGeneration = new cMessage("Block Generation");
     BlockEvent = new cMessage("Block");
 
     char fileName[30];
@@ -199,7 +206,7 @@ void Peer::handleInitialization(cMessage* msg){
     csvFile.open(fileName, std::ios::out | std::ios::app);
 
     if (csvFile.tellp() == 0) {
-        csvFile << "PeerID,BlockID,Time,Number_of_Blocks_Generated\n";
+        csvFile << "Block_Hash,Time,Number_of_Blocks_Generated\n";
     }
 
 
@@ -323,7 +330,8 @@ void Peer::sendGossip(cMessage* msg){
 }
 
 void Peer::handleGossip(cMessage* msg){
-    EV<<getFullName()<< "<---Gossip--->" << msg->getSenderModule()->getFullName() <<endl;
+    // EV<<getFullName()<< "<---Gossip--->" << msg->getSenderModule()->getFullName() <<endl;
+    EV<< "Gossip Received: " << msg->getFullName() <<endl;
     auto gossip = dynamic_cast<Gossip*>(msg);
     if(message_list.find(gossip) == message_list.end()){
         message_list.insert(gossip);
@@ -346,19 +354,24 @@ void Peer::sendDeadMessageToSeed(int peer_ind){
     }
 }
 //
-void Peer::handleTimer(cMessage* msg){
+void Peer::handleBlockGeneration(cMessage* msg){
 
-    blockDataFile.open("blockData.csv", std::ios::in | std::ios::ate);
-    std::streampos fileSize = blockDataFile.tellg();
-    char ch;
-    std::string lastLine = "";
-    for (std::streamoff i = static_cast<std::streamoff>(fileSize) - 1; i >= 0; --i) {
-        blockDataFile.seekg(i); 
-        blockDataFile.get(ch);  
-        if (ch == '\n') {
-            break;  
+    std::fstream blockDataFile("blockData.csv");  // Replace with your CSV file path
+    std::string lastLine, currentLine;
+
+    if (blockDataFile.is_open()) {
+        while (std::getline(blockDataFile, currentLine)) {
+            lastLine = currentLine;  // Keep updating lastLine with each read line
         }
-        lastLine.insert(lastLine.begin(), ch);
+        blockDataFile.close();
+
+        if (!lastLine.empty()) {
+            std::cout << "Last entry: " << lastLine << std::endl;
+        } else {
+            std::cout << "File is empty or error reading file!" << std::endl;
+        }
+    } else {
+        std::cout << "Unable to open file!" << std::endl;
     }
     
     std::stringstream ss(lastLine);
@@ -366,52 +379,48 @@ void Peer::handleTimer(cMessage* msg){
     std::getline(ss, block_hash, ',');
     std::getline(ss, merkel_root, ',');
     std::getline(ss, timestamp, ',');
-
     auto block = new Block("new block");
 
-    SHA256 sha256;
-    std::string new_block_hash = block_hash + std::to_string(getIndex());
-    sha256.update(new_block_hash);
-    std::array<uint8_t, 32> digest = sha256.digest();
-    block->setPrevious_hash(SHA256::toString(digest).c_str());
+    // SHA256 sha256;
+    std::string new_block_hash = std::to_string(hash_fn(block_hash + std::to_string(getIndex())));
+    EV<< lastLine <<endl;
+    // sha256.update(new_block_hash);
+    // std::array<uint8_t, 32> digest = sha256.digest();
+    block->setPrevious_hash(new_block_hash.c_str());
     block->setTimestamp(std::to_string(simTime().inUnit(SimTimeUnit::SIMTIME_S)).c_str());
     block->setMerkel_root(merkel_root.c_str());
     
-    std::vector<Block*> blocks = {block};
+    blockDataFile << block->getPrevious_hash() << "," << block->getMerkel_root() << "," << block->getTimestamp() << "\n";
 
-    bool validate = validateBlocks(blocks);
-    if(validate){
-        blockDataFile << block->getPrevious_hash() << "," << block->getMerkel_root() << "," << block->getTimestamp() << "\n";
+    blockDataFile.close();
 
-        blockDataFile.close();
-
-        number_of_block_generated++;
-        writeBlockToCSV(block);
-        block_list.insert(block);
+    number_of_block_generated++;
+    writeBlockToCSV(block);
+    block_list.insert(block);
 
 
-        EV << new_block_hash.c_str() <<endl;
+    EV << new_block_hash.c_str() <<endl;
 
 
-        for(auto peer: peer_list){
-            send(block->dup(),gate("g$o",number_of_seeds + peer.first + 1));
-        }
+    for(auto peer: peer_list){
+        EV<< "Sending Block to: " << peer.first <<endl;
+        send(block->dup(),gate("g$o",number_of_seeds + peer.first + 1));
     }
-
+    tauGenerator();
+    scheduleAt(simTime() + tau, BlockGeneration);
 }
 
 void Peer::handleBlockMessage(cMessage* msg){
     auto block = dynamic_cast<Block*>(msg);
     if(block_list.find(block) == block_list.end()){
-        cancelEvent(Timer);
+        cancelEvent(BlockGeneration);
+        writeBlockToCSV(block);
         block_list.insert(block);
         tauGenerator();
-        scheduleAt(simTime() + tau, Timer);
+        scheduleAt(simTime() + tau, BlockGeneration);
     }
-    else{
-        for(auto peer: peer_list){
-            send(block->dup(),gate("g$o",number_of_seeds + peer.first + 1));
-        }
+    for(auto peer: peer_list){
+        send(block->dup(),gate("g$o",number_of_seeds + peer.first + 1));
     }
 }
 
@@ -432,8 +441,11 @@ void Peer::askForBlockList(cMessage* msg){
         block->setTimestamp(timestamp.c_str());
         block->setMerkel_root(merkel_root.c_str());
         blocks.push_back(block);
+        prev_block_hash = block_hash;
     }
     bool val = validateBlocks(blocks);
+    tauGenerator();
+    scheduleAt(simTime() + tau, BlockGeneration);
 }
 
 bool Peer::validateBlocks(std::vector<Block*> blocks) {
@@ -449,8 +461,6 @@ bool Peer::validateBlocks(std::vector<Block*> blocks) {
         }
     }
     validation = false;
-    tauGenerator();
-    scheduleAt(simTime() + tau, Timer);
     return true;
 }
 //void difference_in_seconds(std::string timestamp1, std::string timestamp2) {
@@ -466,9 +476,12 @@ bool Peer::validateBlocks(std::vector<Block*> blocks) {
 //}
 void Peer::writeBlockToCSV(Block* block) {
     // Write block data in CSV format: PeerID, BlockID, Time, Number_of_Blocks_Generated
+    csvFile.seekp(0, std::ios::end);
     csvFile << block->getPrevious_hash() << ","
             << simTime() << ","
             << number_of_block_generated << "\n";
+    csvFile.flush();
+    prev_block_hash = block->getPrevious_hash();
 }
 void Peer::finish() {
     // Close the CSV file after the simulation
