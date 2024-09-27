@@ -6,6 +6,6 @@
 
 const int hashPower[] = {5, 11, 12, 4, 5, 6, 7, 8, 9, 10};
 
-#define INTER_ARRIVAL_TIME 100
+#define INTER_ARRIVAL_TIME 8
 
 #endif
