@@ -261,10 +261,11 @@ void Peer::handleInitialization(cMessage *msg)
     {
         csvFile << "Block_Hash,Prev_Block_Hash,Time,Number_of_Blocks_Generated\n";
     }
-
-    scheduleAt(simTime() + 13, LivelinessEvent);
-    scheduleAt(simTime() + 5, GossipEvent);
-    scheduleAt(simTime() + 5, BlockEvent);
+    if(!is_adversary){
+        scheduleAt(simTime() + 13, LivelinessEvent);
+        scheduleAt(simTime() + 5, GossipEvent);
+        scheduleAt(simTime() + 5, BlockEvent);
+    }
 }
 
 void Peer::addPeertoSeed(cMessage *msg)
@@ -286,33 +287,60 @@ void Peer::addPeertoSeed(cMessage *msg)
 void Peer::addPeertoPeer(cMessage *msg)
 {
     auto seed_reply = dynamic_cast<AddPeerToSeedReply *>(msg);
-    vector peers = seed_reply->getPeer_list();
-    peers = shuffle(peers, getIndex());
+    if(!is_adversary){
+        vector peers = seed_reply->getPeer_list();
+        peers = shuffle(peers, getIndex());
 
-    int size = peers.getNumLabels();
-    for (int i = 0; i < size; i++)
-    {
-        auto peerConnectReq = new AddPeerToPeerRequest();
-        peerConnectReq->setSender_peer_ind(getIndex());
-        peerConnectReq->setReciever_peer_ind(peers.getLabel(i));
-
-        if (peer_list.find(peers.getLabel(i)) == peer_list.end())
+        int size = peers.getNumLabels();
+        for (int i = 0; i < size; i++)
         {
-            int gate_ind = number_of_seeds + peers.getLabel(i) + 1;
+            auto peerConnectReq = new AddPeerToPeerRequest();
+            peerConnectReq->setSender_peer_ind(getIndex());
+            peerConnectReq->setReciever_peer_ind(peers.getLabel(i));
 
-            std::string path = (std::string)getParentModule()->getFullName() + ".peers[" + std::to_string(peers.getLabel(i)) + "]";
+            if (peer_list.find(peers.getLabel(i)) == peer_list.end())
+            {
+                int gate_ind = number_of_seeds + peers.getLabel(i) + 1;
 
-            cModule *module = getModuleByPath(path.c_str());
-            EV << module->getFullName() << " " << gate_ind << endl;
+                std::string path = (std::string)getParentModule()->getFullName() + ".peers[" + std::to_string(peers.getLabel(i)) + "]";
 
-            gate("g$o", gate_ind)->connectTo(module->gate("g$i", number_of_seeds + getIndex() + 1));
+                cModule *module = getModuleByPath(path.c_str());
+                EV << module->getFullName() << " " << gate_ind << endl;
 
-            peer_list[peers.getLabel(i)] = true;
+                gate("g$o", gate_ind)->connectTo(module->gate("g$i", number_of_seeds + getIndex() + 1));
 
-            send(peerConnectReq, gate("g$o", gate_ind));
+                peer_list[peers.getLabel(i)] = true;
+
+                send(peerConnectReq, gate("g$o", gate_ind));
+            }
+        }
+        EV << endl;
+    }
+    else{
+        int n = (number_of_peers*PERCENT_FLOODING)/100;
+        std::vector<int> arr = generateRandomArray(n, number_of_peers);
+        for (int i = 0; i < n; i++)
+        {
+            auto peerConnectReq = new AddPeerToPeerRequest();
+            peerConnectReq->setSender_peer_ind(getIndex());
+            peerConnectReq->setReciever_peer_ind(arr[i]);
+            if(peer_list.find(arr[i]) == peer_list.end()){
+                int gate_ind = number_of_seeds + arr[i] + 1;
+
+                std::string path = (std::string)getParentModule()->getFullName() + ".peers[" + std::to_string(arr[i]) + "]";
+
+                cModule *module = getModuleByPath(path.c_str());
+
+                gate("g$o", gate_ind)->connectTo(module->gate("g$i", number_of_seeds + getIndex() + 1));
+
+                EV << "Peer: " << getIndex() << " connected to " << arr[i] << endl;
+
+                peer_list[arr[i]] = true;
+
+                send(peerConnectReq, gate("g$o", gate_ind));
+            }
         }
     }
-    EV << endl;
 }
 
 void Peer::addPeerToPeerHandler(cMessage *msg)

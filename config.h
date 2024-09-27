@@ -9,6 +9,6 @@ const int init_delay[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
 #define INTER_ARRIVAL_TIME 8
 
-#define PERCENT_FLOODING 0.1
+#define PERCENT_FLOODING 30
 
 #endif
