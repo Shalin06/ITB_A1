@@ -102,15 +102,16 @@ protected:
     std::unordered_map<int, bool> peer_list;
     std::unordered_map<int, int> liveliness_cnt;
     std::unordered_map<std::string, int> block_list;
-    std::queue<Block> pendingQueue;
     std::set<std::string> message_list;
     std::set<std::string> block_hashes;
     std::string longest_chain_block_hash;
+    std::set<std::string> self_generated_blocks;
 
     cMessage *LivelinessEvent;
     cMessage *GossipEvent;
     cMessage *BlockGeneration;
     cMessage *BlockEvent;
+    cMessage *InvalidBlockMessage;
 
     virtual void initialize(int stage) override;
     virtual void handleMessage(cMessage *msg) override;
@@ -131,7 +132,7 @@ protected:
     virtual void askForBlockList(cMessage *msg);
     virtual bool validateBlocks(std::vector<Block *> blocks);
     virtual bool validateBlock(Block *block);
-    virtual bool insertBlock(Block *block);
+    virtual bool insertBlock(Block *block, bool self=false);
     virtual void sendInvalidBlockMessage();
     virtual void finish() override;
 
@@ -157,7 +158,7 @@ void Peer::initialize(int stage)
     {
         int ind = getIndex();
         hashing_power = hashPower[ind];
-        scheduleAt(simTime() + init_delay[ind], new cMessage("delayedInit"));
+        scheduleAt(simTime() + getIndex()+1, new cMessage("delayedInit"));
     }
 }
 
@@ -215,6 +216,10 @@ void Peer::handleMessage(cMessage *msg)
         {
             askForBlockList(msg);
         }
+        else if (msg == InvalidBlockMessage && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 1000)
+        {
+            sendInvalidBlockMessage();
+        }
         else
         {
             std::cout << msg->getName() << std::endl;
@@ -248,10 +253,6 @@ void Peer::handleInitialization(cMessage *msg)
 
         scheduleAt(simTime() + 5, PeerRequestToSeed);
     }
-    LivelinessEvent = new cMessage("Liveliness");
-    GossipEvent = new cMessage("Gossip");
-    BlockGeneration = new cMessage("Block Generation");
-    BlockEvent = new cMessage("Block");
 
     char fileName[30];
     std::sprintf(fileName, "block_data%d.csv", self_ind);
@@ -261,10 +262,23 @@ void Peer::handleInitialization(cMessage *msg)
     {
         csvFile << "Block_Hash,Prev_Block_Hash,Time,Number_of_Blocks_Generated\n";
     }
-    if(!is_adversary){
+
+    LivelinessEvent = new cMessage("Liveliness");
+    GossipEvent = new cMessage("Gossip");
+    BlockGeneration = new cMessage("Block Generation");
+    BlockEvent = new cMessage("Block");
+    if (!is_adversary)
+    {
+
         scheduleAt(simTime() + 13, LivelinessEvent);
         scheduleAt(simTime() + 5, GossipEvent);
         scheduleAt(simTime() + 5, BlockEvent);
+    }
+    else
+    {
+        InvalidBlockMessage = new cMessage("Invalid Block");
+        scheduleAt(simTime() + 5, BlockEvent);
+        scheduleAt(simTime() + 5, InvalidBlockMessage);
     }
 }
 
@@ -287,7 +301,8 @@ void Peer::addPeertoSeed(cMessage *msg)
 void Peer::addPeertoPeer(cMessage *msg)
 {
     auto seed_reply = dynamic_cast<AddPeerToSeedReply *>(msg);
-    if(!is_adversary){
+    if (!is_adversary)
+    {
         vector peers = seed_reply->getPeer_list();
         peers = shuffle(peers, getIndex());
 
@@ -316,15 +331,16 @@ void Peer::addPeertoPeer(cMessage *msg)
         }
         EV << endl;
     }
-    else{
-        int n = (number_of_peers*PERCENT_FLOODING)/100;
-        std::vector<int> arr = generateRandomArray(n, number_of_peers);
-        for (int i = 0; i < n; i++)
-        {
+    else
+    {
+        int n = ((number_of_peers-1) * PERCENT_FLOODING) / 100;
+        std::vector<int> arr = generateRandomArray(n, number_of_peers-1);
+        for (int i = 0; i < n; i++){
             auto peerConnectReq = new AddPeerToPeerRequest();
             peerConnectReq->setSender_peer_ind(getIndex());
             peerConnectReq->setReciever_peer_ind(arr[i]);
-            if(peer_list.find(arr[i]) == peer_list.end()){
+            if (peer_list.find(arr[i]) == peer_list.end())
+            {
                 int gate_ind = number_of_seeds + arr[i] + 1;
 
                 std::string path = (std::string)getParentModule()->getFullName() + ".peers[" + std::to_string(arr[i]) + "]";
@@ -455,10 +471,10 @@ void Peer::handleBlockGeneration(cMessage *msg)
     auto block = new Block("new block");
 
     block->setPrevious_hash(longest_chain_block_hash.c_str());
-    block->setTimestamp(std::to_string(simTime().inUnit(SimTimeUnit::SIMTIME_NS)).c_str());
-    block->setMerkel_root("0");
+    block->setTimestamp(std::to_string(simTime().inUnit(SimTimeUnit::SIMTIME_PS)).c_str());
+    block->setMerkel_root(std::to_string(getIndex()).c_str());
 
-    if (insertBlock(block))
+    if (insertBlock(block,true))
     {
         number_of_block_generated++;
         for (auto peer : peer_list)
@@ -480,6 +496,9 @@ void Peer::sendInvalidBlockMessage()
         invalidBlock->setTimestamp("Invalid");
         invalidBlock->setMerkel_root("Invalid");
         send(invalidBlock->dup(), gate("g$o", number_of_seeds + peer.first + 1));
+    }
+    if(!InvalidBlockMessage->isScheduled()){
+        scheduleAt(simTime() + 2, InvalidBlockMessage);
     }
 }
 
@@ -562,7 +581,7 @@ bool Peer::validateBlock(Block *block)
     return !block_in_list && prev_block_in_list;
 }
 
-bool Peer::insertBlock(Block *block)
+bool Peer::insertBlock(Block *block, bool self)
 {
     if (block_list.empty())
     {
@@ -588,6 +607,10 @@ bool Peer::insertBlock(Block *block)
             }
         }
         writeBlockToCSV(block);
+        if (self)
+        {
+            self_generated_blocks.insert(hash_block(block));
+        }
         return true;
     }
     return false;
@@ -609,8 +632,7 @@ void Peer::writeBlockToCSV(Block *block)
     csvFile.seekp(0, std::ios::end);
     csvFile << hash_block(block) << ","
             << block->getPrevious_hash() << ","
-            << block->getTimestamp() << ","
-            << number_of_block_generated << "\n";
+            << block->getTimestamp() << "\n";
     csvFile.flush();
 }
 void Peer::finish()
@@ -629,5 +651,6 @@ void Peer::finish()
     std::sprintf(fileName, "block_meta_data%d.txt", getIndex());
     csvFile.open(fileName, std::ios::out | std::ios::app);
     csvFile << "Longest Chain Length: " << longest_chain_length << endl;
+    csvFile << "Self generated blocks: " << self_generated_blocks.size() << endl;
     csvFile.close();
 }
