@@ -95,6 +95,7 @@ protected:
     int number_of_peers;
     int message_count = 0;
     bool validation = true;
+    bool is_adversary = false;
 
     std::unordered_map<std::string, int> seed_list;
     std::unordered_map<std::string, AddPeerToSeedRequest *> peerRequestMap;
@@ -131,6 +132,7 @@ protected:
     virtual bool validateBlocks(std::vector<Block *> blocks);
     virtual bool validateBlock(Block *block);
     virtual bool insertBlock(Block *block);
+    virtual void sendInvalidBlockMessage();
     virtual void finish() override;
 
 public:
@@ -155,8 +157,7 @@ void Peer::initialize(int stage)
     {
         int ind = getIndex();
         hashing_power = hashPower[ind];
-        simtime_t delay = uniform(ind, ind + 5);
-        scheduleAt(simTime() + delay, new cMessage("delayedInit"));
+        scheduleAt(simTime() + init_delay[ind], new cMessage("delayedInit"));
     }
 }
 
@@ -227,6 +228,8 @@ void Peer::handleInitialization(cMessage *msg)
     int self_ind = getIndex();
     number_of_seeds = getParentModule()->par("number_of_seeds");
     setGateSize("g", 100);
+    number_of_peers = getParentModule()->par("number_of_peers");
+    is_adversary = (self_ind == (number_of_peers - 1));
     std::vector<int> seeds_to_connect = generateRandomArray(number_of_seeds / 2 + 1, number_of_seeds);
     for (auto i : seeds_to_connect)
     {
@@ -437,6 +440,18 @@ void Peer::handleBlockGeneration(cMessage *msg)
         }
         tauGenerator();
         scheduleAt(simTime() + tau, BlockGeneration);
+    }
+}
+
+void Peer::sendInvalidBlockMessage()
+{
+    for (auto peer : peer_list)
+    {
+        auto invalidBlock = new Block();
+        invalidBlock->setPrevious_hash("Invalid");
+        invalidBlock->setTimestamp("Invalid");
+        invalidBlock->setMerkel_root("Invalid");
+        send(invalidBlock->dup(), gate("g$o", number_of_seeds + peer.first + 1));
     }
 }
 
