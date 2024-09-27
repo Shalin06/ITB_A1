@@ -1,2 +1,0 @@
-Longest Chain Length: 158
-Self generated blocks: 21

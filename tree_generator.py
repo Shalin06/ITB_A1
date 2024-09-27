@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import tkinter as tk
 from tkinter import ttk
+import sys
 
 # Load CSV data
 def load_csv(file_path):
@@ -19,25 +20,25 @@ def build_chain(df):
     return chain
 
 # Plot using matplotlib for more control over layout and save the image
-def visualize_chain(chain, root):
-    fig, ax = plt.subplots(figsize=(10, 200))  # Adjust figure size for more vertical space
+def visualize_chain(chain):
+    fig, ax = plt.subplots(figsize=(20, 500))  # Adjust figure size for more vertical space
 
     # Create a hierarchical layout and scale the vertical positions
     pos = nx.nx_agraph.graphviz_layout(chain, prog='dot')
     for node, (x, y) in pos.items():
-        pos[node] = (x, y * 2)  # Scale the y-coordinate for more vertical space
+        pos[node] = (x*10, (y-1)*100)  # Scale the y-coordinate for more vertical space
 
     # Draw the graph
     nx.draw(chain, pos, ax=ax, with_labels=True, node_shape='o', node_color='lightblue', 
-            node_size=2000, font_size=10, arrows=True)
+            node_size=500, font_size=8, arrows=True)
     
     # Save the figure
-    fig.savefig('chain_graph.png')  # Save the figure to a file
+    fig.savefig(f'result_trees/graph_{sys.argv[1]}_{sys.argv[2]}.png')  # Save the figure to a file
 
     # Embed the plot in Tkinter canvas
-    canvas = FigureCanvasTkAgg(fig, master=root)
-    canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-    canvas.draw()
+    # canvas = FigureCanvasTkAgg(fig, master=root)
+    # canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
+    # canvas.draw()
 
 # Add scrollable functionality to the window
 def make_scrollable_window():
@@ -72,9 +73,9 @@ def main(csv_file_path):
     chain = build_chain(df)
     
     # Create a scrollable window and embed the graph in it
-    root, second_frame = make_scrollable_window()
-    visualize_chain(chain, second_frame)
-    root.mainloop()
+    # root, second_frame = make_scrollable_window()
+    visualize_chain(chain)
+    # root.mainloop()
 
 # Path to the CSV file
 csv_file_path = 'block_data0.csv'

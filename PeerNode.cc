@@ -96,6 +96,7 @@ protected:
     int message_count = 0;
     bool validation = true;
     bool is_adversary = false;
+    int total_blocks = 0;
 
     std::unordered_map<std::string, int> seed_list;
     std::unordered_map<std::string, AddPeerToSeedRequest *> peerRequestMap;
@@ -127,12 +128,12 @@ protected:
     virtual void sendDeadMessageToSeed(int peer_ind);
     virtual void handleBlockGeneration(cMessage *msg);
     virtual void handleBlockMessage(cMessage *msg);
-    virtual void writeBlockToCSV(Block *block);
+    virtual void writeBlockToCSV(Block *block, int index);
     virtual void tauGenerator();
     virtual void askForBlockList(cMessage *msg);
     virtual bool validateBlocks(std::vector<Block *> blocks);
     virtual bool validateBlock(Block *block);
-    virtual bool insertBlock(Block *block, bool self=false);
+    virtual bool insertBlock(Block *block, int index);
     virtual void sendInvalidBlockMessage();
     virtual void finish() override;
 
@@ -158,7 +159,7 @@ void Peer::initialize(int stage)
     {
         int ind = getIndex();
         hashing_power = hashPower[ind];
-        scheduleAt(simTime() + getIndex()+1, new cMessage("delayedInit"));
+        scheduleAt(simTime() + 1, new cMessage("delayedInit"));
     }
 }
 
@@ -195,7 +196,7 @@ void Peer::handleMessage(cMessage *msg)
         {
             handleLivelinessReply(recieveLiveRelpy);
         }
-        else if (msg == GossipEvent && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 1000)
+        else if (msg == GossipEvent && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 3600)
         {
             sendGossip(msg);
             scheduleAt(simTime() + 5, GossipEvent);
@@ -204,7 +205,7 @@ void Peer::handleMessage(cMessage *msg)
         {
             handleGossip(gossip);
         }
-        else if (msg == BlockGeneration && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 1000)
+        else if (msg == BlockGeneration && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 3600)
         {
             handleBlockGeneration(msg);
         }
@@ -212,11 +213,11 @@ void Peer::handleMessage(cMessage *msg)
         {
             handleBlockMessage(msg);
         }
-        else if (msg == BlockEvent && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 1000)
+        else if (msg == BlockEvent && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 3600)
         {
             askForBlockList(msg);
         }
-        else if (msg == InvalidBlockMessage && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 1000)
+        else if (msg == InvalidBlockMessage && simTime().inUnit(SimTimeUnit::SIMTIME_S) <= 3600)
         {
             sendInvalidBlockMessage();
         }
@@ -333,9 +334,10 @@ void Peer::addPeertoPeer(cMessage *msg)
     }
     else
     {
-        int n = ((number_of_peers-1) * PERCENT_FLOODING) / 100;
-        std::vector<int> arr = generateRandomArray(n, number_of_peers-1);
-        for (int i = 0; i < n; i++){
+        int n = ((number_of_peers - 1) * PERCENT_FLOODING) / 100;
+        std::vector<int> arr = generateRandomArray(n, number_of_peers - 1);
+        for (int i = 0; i < n; i++)
+        {
             auto peerConnectReq = new AddPeerToPeerRequest();
             peerConnectReq->setSender_peer_ind(getIndex());
             peerConnectReq->setReciever_peer_ind(arr[i]);
@@ -468,13 +470,13 @@ void Peer::sendDeadMessageToSeed(int peer_ind)
 //
 void Peer::handleBlockGeneration(cMessage *msg)
 {
-    auto block = new Block("new block");
+    auto block = new Block(std::to_string(getIndex()).c_str());
 
     block->setPrevious_hash(longest_chain_block_hash.c_str());
     block->setTimestamp(std::to_string(simTime().inUnit(SimTimeUnit::SIMTIME_PS)).c_str());
     block->setMerkel_root(std::to_string(getIndex()).c_str());
 
-    if (insertBlock(block,true))
+    if (insertBlock(block, getIndex()))
     {
         number_of_block_generated++;
         for (auto peer : peer_list)
@@ -497,7 +499,8 @@ void Peer::sendInvalidBlockMessage()
         invalidBlock->setMerkel_root("Invalid");
         send(invalidBlock->dup(), gate("g$o", number_of_seeds + peer.first + 1));
     }
-    if(!InvalidBlockMessage->isScheduled()){
+    if (!InvalidBlockMessage->isScheduled())
+    {
         scheduleAt(simTime() + 2, InvalidBlockMessage);
     }
 }
@@ -505,16 +508,16 @@ void Peer::sendInvalidBlockMessage()
 void Peer::handleBlockMessage(cMessage *msg)
 {
     auto block = dynamic_cast<Block *>(msg);
-    if (insertBlock(block))
+    if (insertBlock(block, atoi(msg->getName())))
     {
-        cancelEvent(BlockGeneration);
-        tauGenerator();
-        scheduleAt(simTime() + tau, BlockGeneration);
         for (auto peer : peer_list)
         {
             send(block->dup(), gate("g$o", number_of_seeds + peer.first + 1));
         }
     }
+    cancelEvent(BlockGeneration);
+    tauGenerator();
+    scheduleAt(simTime() + tau, BlockGeneration);
 }
 
 void Peer::askForBlockList(cMessage *msg)
@@ -532,10 +535,11 @@ void Peer::askForBlockList(cMessage *msg)
     {
 
         std::stringstream ss(line);
-        std::string block_hash, merkel_root, timestamp;
+        std::string block_hash, merkel_root, timestamp, index;
         std::getline(ss, block_hash, ',');
         std::getline(ss, merkel_root, ',');
         std::getline(ss, timestamp, ',');
+        std::getline(ss, index, ',');
 
         if (block_hash == "Block_Hash")
         {
@@ -546,7 +550,7 @@ void Peer::askForBlockList(cMessage *msg)
         block->setPrevious_hash(block_hash.c_str());
         block->setTimestamp(timestamp.c_str());
         block->setMerkel_root(merkel_root.c_str());
-        insertBlock(block);
+        insertBlock(block, atoi(index.c_str()));
     }
     // bool val = validateBlocks(blocks);
     tauGenerator();
@@ -581,14 +585,14 @@ bool Peer::validateBlock(Block *block)
     return !block_in_list && prev_block_in_list;
 }
 
-bool Peer::insertBlock(Block *block, bool self)
+bool Peer::insertBlock(Block *block, int index)
 {
     if (block_list.empty())
     {
         block_list[hash_block(block)] = 1;
         longest_chain_length = 1;
         longest_chain_block_hash = hash_block(block);
-        writeBlockToCSV(block);
+        writeBlockToCSV(block, index);
         return true;
     }
     else if (validateBlock(block))
@@ -606,8 +610,8 @@ bool Peer::insertBlock(Block *block, bool self)
                 longest_chain_block_hash = hash_block(block);
             }
         }
-        writeBlockToCSV(block);
-        if (self)
+        writeBlockToCSV(block, index);
+        if (index == getIndex())
         {
             self_generated_blocks.insert(hash_block(block));
         }
@@ -626,14 +630,16 @@ bool Peer::insertBlock(Block *block, bool self)
 //     std::time_t time2 = std::mktime(&tm2);
 //     return std::difftime(time1, time2);
 // }
-void Peer::writeBlockToCSV(Block *block)
+void Peer::writeBlockToCSV(Block *block, int index)
 {
     // Write block data in CSV format: PeerID, BlockID, Time, Number_of_Blocks_Generated
     csvFile.seekp(0, std::ios::end);
     csvFile << hash_block(block) << ","
             << block->getPrevious_hash() << ","
-            << block->getTimestamp() << "\n";
+            << block->getTimestamp() << ","
+            << index << "\n";
     csvFile.flush();
+    total_blocks++;
 }
 void Peer::finish()
 {
@@ -653,4 +659,15 @@ void Peer::finish()
     csvFile << "Longest Chain Length: " << longest_chain_length << endl;
     csvFile << "Self generated blocks: " << self_generated_blocks.size() << endl;
     csvFile.close();
+
+    if (getIndex() == 0)
+    {
+        char fileName[30];
+        std::sprintf(fileName, "result.csv", getIndex());
+        csvFile.open(fileName, std::ios::app);
+        float mining_power_utilization = (longest_chain_length) / (float)total_blocks;
+        csvFile << PERCENT_FLOODING << ","
+                << INTER_ARRIVAL_TIME << ","
+                << mining_power_utilization << ",";
+    }
 }

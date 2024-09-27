@@ -27,10 +27,7 @@ void Seed :: initialize(){
     if(getIndex() == 0){
         blockDataFile.open("blockData.csv", std::ios::out | std::ios::app);
         if (blockDataFile.tellp() == 0) {
-            SHA256 sha256;
-            sha256.update("0000");
-            auto hash = sha256.digest();
-            std::string block_hash = SHA256::toString(hash);
+            std::string block_hash = "9c1c";
             std::string merkel_root = "0";
             std::string timeStamp = "0";
             blockDataFile << "Block_Hash,Merkel_root,TimeStamp\n";
