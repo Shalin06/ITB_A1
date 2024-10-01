@@ -159,7 +159,8 @@ void Peer::initialize(int stage)
     {
         int ind = getIndex();
         hashing_power = hashPower[ind];
-        scheduleAt(simTime() + 1, new cMessage("delayedInit"));
+
+        scheduleAt(simTime() + getIndex(), new cMessage("delayedInit"));
     }
 }
 
