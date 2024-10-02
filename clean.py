@@ -10,7 +10,7 @@ def clean():
     
     # Delete all .csv files except for result.csv
     for file in files:
-        if file.endswith('.csv') and file != 'result.csv':
+        if file.endswith('.csv') and file not in ['result.csv', 'result_new.csv']:
             os.remove(file)
 
 clean()

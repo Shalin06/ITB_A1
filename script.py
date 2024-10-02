@@ -1,7 +1,6 @@
 import subprocess
 import platform
 from time import sleep
-import random
 import sys
 import os
 
@@ -29,11 +28,15 @@ def longest_chain():
     command = f"python longest_chain.py"
     os.system(command)
 
+def clean():
+    command = f"python clean.py"
+    os.system(command)
 
 
 def main():
     generate_tree()
     longest_chain()
+    clean()
 
 if __name__ == "__main__":
     main()

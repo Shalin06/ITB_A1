@@ -1,10 +1,8 @@
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import tkinter as tk
-from tkinter import ttk
 import sys
+import os
 
 # Load CSV data
 def load_csv(file_path):
@@ -33,39 +31,9 @@ def visualize_chain(chain):
             node_size=500, font_size=8, arrows=True)
     
     # Save the figure
-    fig.savefig(f'result_trees/graph_{sys.argv[1]}_{sys.argv[2]}.png')  # Save the figure to a file
-
-    # Embed the plot in Tkinter canvas
-    # canvas = FigureCanvasTkAgg(fig, master=root)
-    # canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=1)
-    # canvas.draw()
-
-# Add scrollable functionality to the window
-def make_scrollable_window():
-    root = tk.Tk()
-    root.title("Scrollable Chain Graph")
-    
-    # Create a frame to hold the canvas and scrollbar
-    main_frame = ttk.Frame(root)
-    main_frame.pack(fill=tk.BOTH, expand=1)
-
-    # Create a canvas for scrolling
-    my_canvas = tk.Canvas(main_frame)
-    my_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=1)
-
-    # Add a scrollbar to the canvas
-    scrollbar = ttk.Scrollbar(main_frame, orient=tk.VERTICAL, command=my_canvas.yview)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-
-    # Configure the canvas
-    my_canvas.configure(yscrollcommand=scrollbar.set)
-    my_canvas.bind('<Configure>', lambda e: my_canvas.configure(scrollregion=my_canvas.bbox("all")))
-
-    # Create another frame inside the canvas to hold the plot
-    second_frame = ttk.Frame(my_canvas)
-    my_canvas.create_window((0, 0), window=second_frame, anchor="nw")
-
-    return root, second_frame
+    if os.path.exists('result_trees_2') == False:
+        os.mkdir('result_trees_2')
+    fig.savefig(f'result_trees_2/graph_{sys.argv[1]}_{sys.argv[2]}.png')  # Save the figure to a file
 
 # Main execution
 def main(csv_file_path):

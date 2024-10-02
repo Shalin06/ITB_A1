@@ -663,7 +663,7 @@ void Peer::finish()
     if (getIndex() == 0)
     {
         char fileName[30];
-        std::sprintf(fileName, "result.csv", getIndex());
+        std::sprintf(fileName, "result_new.csv", getIndex());
         csvFile.open(fileName, std::ios::app);
         float mining_power_utilization = (longest_chain_length) / (float)total_blocks;
         csvFile << PERCENT_FLOODING << ","

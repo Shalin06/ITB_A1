@@ -87,7 +87,7 @@ def main(file_path):
     # Count the fraction of blocks for each generator in the longest chain
     generator_fractions = count_generator_fractions(longest_chain, generators)
 
-    with open('result.csv', mode='a') as file:
+    with open('result_new.csv', mode='a') as file:
         ans = 0
         if 39 in generator_fractions:
             ans = generator_fractions[39]
