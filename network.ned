@@ -17,11 +17,11 @@ network Network {
  	submodules:
  	    seeds[number_of_seeds]: Seed {
  	    	parameters: 
- 	    	    @display("p=122,178,m,4,80,80;");
+ 	    	    @display("p=122,178,m,4,80,80;i=device/server;");
  	    }  
  	    
  	    peers[number_of_peers]: Peer {
  	    	parameters: 
- 	    	    @display("p=572,178,m,3,80,80;");	
+ 	    	    @display("p=572,178,m,3,80,80;i=device/pc2;");	
  	    }
 }
